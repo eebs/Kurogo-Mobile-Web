@@ -1,9 +1,14 @@
-<?php class RedisCache extends KurogoMemoryCache {
+<?php
+
+class RedisCache extends KurogoMemoryCache {
+
     protected $connection;
     protected $host = 'localhost';
     protected $port = 6379;
+
     protected function init($args){
         parent::init($args);
+
         if(isset($args['CACHE_HOST'])) {
             $this->host = $args['CACHE_HOST'];
         }
@@ -13,8 +18,10 @@
         if(isset($args['CACHE_RECONNECT'])) {
             $this->reconnect = $args['CACHE_RECONNECT'];
         }
+
         $this->connect($this->host, $this->port);
     }
+
     protected function connect($host, $port){
         if(!empty($this->connection)){
             fclose($this->connection);
@@ -22,12 +29,12 @@
         }
         $socket = fsockopen($host, $port, $errornumber, $errorstring);
         if(!$socket){
-            throw new KurogoConfigurationException('Connection error: 
-'.$errornumber.':'.$errorstring);
+            throw new KurogoConfigurationException('Connection error: '.$errornumber.':'.$errorstring);
         }
         $this->connection = $socket;
         return $socket;
     }
+
     protected function send($args){
         if(empty($this->connection)){
             $this->connect($this->host, $this->port);
@@ -39,6 +46,7 @@
         fwrite($this->connection, $command);
         return $this->parseResponse();
     }
+
     protected function parseResponse(){
         if(empty($this->connection)){
             $this->connect($this->host, $this->port);
@@ -46,6 +54,7 @@
         $server_response = fgets($this->connection);
         $reply = trim($server_response);
         $response = null;
+
         switch ($reply[0])
         {
             /* Error reply */
@@ -60,7 +69,7 @@
                     return null;
                 }
                 $response = null;
-                $size = intval(substr($reply, 1));
+                $size     = intval(substr($reply, 1));
                 if ($size > 0){
                     $response = stream_get_contents($this->connection, $size);
                 }
@@ -82,15 +91,16 @@
                 return intval(substr($reply, 1));
                 break;
             default:
-                throw new KurogoException('Non-protocol response: '.print_r($server_response, 
-1));
+                throw new KurogoException('Non-protocol response: '.print_r($server_response, 1));
                 return false;
         }
         return $response;
     }
+
     public function get($key){
         return unserialize($this->send(array('get', $key)));
     }
+
     /* only store the value if it does not exist */
     public function add($key, $value, $ttl = null){
         $response = $this->send(array('setnx', $key, serialize($value)));
@@ -100,6 +110,7 @@
         $this->send(array('expire', $key, $ttl));
         return $response;
     }
+
     /* store unconditionally */
     public function set($key, $value, $ttl = null){
         $response = $this->send(array('set', $key, serialize($value)));
@@ -109,9 +120,11 @@
         $this->send(array('expire', $key, $ttl));
         return $response;
     }
+
     public function delete($key){
         return $this->send(array('del', $key));
     }
+
     public function clear(){
         return $this->send(array('flushdb'));
     }
